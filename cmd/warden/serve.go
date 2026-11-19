@@ -73,6 +73,11 @@ func approvals(cfg settings.Approvals) (approval.Approver, approval.KeySet, *app
 		f.Issuer = cfg.Issuer
 		return f, f.Keys(), f, nil
 	case settings.ApprovalsGatecrasher:
+		var token func(context.Context) (string, error)
+		if cfg.TokenFile != "" {
+			path := cfg.TokenFile
+			token = func(context.Context) (string, error) { return tokenfile.Read(path) }
+		}
 		var keys approval.KeySet
 		if cfg.JWKSFile != "" {
 			k, err := approval.LoadJWKSFile(cfg.JWKSFile)
@@ -81,14 +86,9 @@ func approvals(cfg settings.Approvals) (approval.Approver, approval.KeySet, *app
 			}
 			keys = k
 		} else {
-			keys = &approval.RemoteKeys{URL: cfg.JWKSURL}
+			keys = &approval.RemoteKeys{URL: cfg.JWKSURL, Token: token}
 		}
-		c := &approval.HTTPClient{BaseURL: cfg.URL}
-		if cfg.TokenFile != "" {
-			path := cfg.TokenFile
-			c.Token = func(context.Context) (string, error) { return tokenfile.Read(path) }
-		}
-		return c, keys, nil, nil
+		return &approval.HTTPClient{BaseURL: cfg.URL, Token: token}, keys, nil, nil
 	default:
 		return nil, nil, nil, nil
 	}
@@ -126,7 +126,7 @@ func serve(ctx context.Context, app *module.App, ready func(net.Addr)) error {
 		slog.Warn("warden: approvals.mode is fake: elevated and critical requests are decided through the owner-only dev routes, not Gatecrasher")
 	}
 	svc, err := service.New(ctx, service.Options{Store: st, Keys: issuerKeys, Rules: rules, Approver: approver, DecisionKeys: decisionKeys,
-		Deny: denyList, Config: service.Config{Issuer: cfg.Issuer, VerificationURI: cfg.VerificationURI, GatecrasherIssuer: cfg.Approvals.Issuer}})
+		Deny: denyList, Config: service.Config{Issuer: cfg.Issuer, VerificationURI: cfg.VerificationURI, GatecrasherIssuer: cfg.Approvals.Issuer, ApprovalOwner: cfg.Approvals.Owner}})
 	if err != nil {
 		return err
 	}

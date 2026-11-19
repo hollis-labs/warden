@@ -72,8 +72,9 @@ warden:
   approvals:
     mode: gatecrasher                     # fake (development), gatecrasher, or off (elevated/critical stay pending)
     url: https://gatecrasher.example
-    jwks_url: https://gatecrasher.example/.well-known/jwks.json   # or jwks_file: a pinned JWKS
+    jwks_url: https://gatecrasher.example/api/gate/v1/jwks.json   # or jwks_file: a pinned JWKS
     token_file: ~/.config/warden/gatecrasher.token                 # 0600; the bearer Warden presents
+    owner: human:owner                                             # Gatecrasher approvals.owner.sub: the only critical decider
 ```
 
 Resource servers trust Warden with the auth module's existing settings: `auth.issuer` = Warden's issuer,

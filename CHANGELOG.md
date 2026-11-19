@@ -18,7 +18,7 @@ refuses a tag whose CHANGELOG has no heading for it.
 - Enrollment: anonymous `POST /v1/enroll` with a poll token and exactly-once delivery, authenticated `/api/v1/enroll`, and agents enrolling their own sessions at ground tier.
 - Requests and grants: `/api/v1` API, MCP tools `warden_request`, `warden_request_status` and `warden_grants_list`, and the `warden request|grants|token|enroll|device|whoami` CLI.
 - Policy: a libs/security/policy PDP with a declarative rules file and fixed critical floors. Ground is auto-approved; elevated and critical go to Gatecrasher.
-- Gatecrasher contract v0 (`docs/gatecrasher-contract.md`): HTTP client, signed-decision verifier (bound to the request digest, tier and decider rules) and an in-process fake for development.
+- Gatecrasher gate v1 client (`docs/gatecrasher-contract.md`): the RFC 8785 request digest, pinned to Gatecrasher's vectors; a signed-decision verifier bound to the digest, the tier, the owner and no self-approval; and an in-process fake that applies Gatecrasher's submit validation.
 - Revocation of grants, families and principals, applied to live tokens through the deny-list. Audit log.
 - Vault skeleton: `warden://` references, AES-256-GCM envelope encryption (per-secret DEK, KEK file), Backend interface and memory backend.
 - `client` package: a rotation-aware Minter for libs auth's Refresher, holding an exclusive lock on the parent file.

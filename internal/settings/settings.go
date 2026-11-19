@@ -14,6 +14,7 @@
 //	    jwks_file: ""
 //	    issuer: gatecrasher        # iss of signed decisions
 //	    token_file: ""             # bearer Warden presents to Gatecrasher (0600 token file)
+//	    owner: ""                  # Gatecrasher's owner principal id: the only decider of a critical request
 package settings
 
 import (
@@ -41,6 +42,7 @@ type Approvals struct {
 	JWKSFile  string
 	Issuer    string
 	TokenFile string
+	Owner     string
 }
 
 // Settings are the parsed block.
@@ -89,11 +91,12 @@ func Parse(raw any) (Settings, error) {
 			if !ok {
 				return s, fmt.Errorf("%s.approvals: must be a map", Key)
 			}
-			if err := known(Key+".approvals", a, "mode", "url", "jwks_url", "jwks_file", "issuer", "token_file"); err != nil {
+			if err := known(Key+".approvals", a, "mode", "url", "jwks_url", "jwks_file", "issuer", "token_file", "owner"); err != nil {
 				return s, err
 			}
 			for key, dst := range map[string]*string{"mode": &s.Approvals.Mode, "url": &s.Approvals.URL, "jwks_url": &s.Approvals.JWKSURL,
-				"jwks_file": &s.Approvals.JWKSFile, "issuer": &s.Approvals.Issuer, "token_file": &s.Approvals.TokenFile} {
+				"jwks_file": &s.Approvals.JWKSFile, "issuer": &s.Approvals.Issuer, "token_file": &s.Approvals.TokenFile,
+				"owner": &s.Approvals.Owner} {
 				if err := str(a, Key+".approvals."+key, key, dst); err != nil {
 					return s, err
 				}

@@ -95,17 +95,50 @@ func (s *Service) insertRequest(ctx context.Context, tx store.Tx, r *Request) er
 		map[string]any{"request": r.ID, "action": r.Action, "audience": r.Audience, "scopes": r.Scopes, "tier": r.Tier, "rule": r.Rule, "status": r.Status})
 }
 
-func (r Request) approvalRef() (approval.PrincipalRef, approval.Requested) {
+// approvalRef is the request as Gatecrasher sees it, and as the digest covers it. An enrollment or a device
+// sign-in is described by the Warden grant it produces: the base scopes on Warden, or the first grant the
+// enrollment asks for, for the life of the family.
+func (r Request) approvalRef(cfg Config) (approval.PrincipalRef, approval.Requested) {
 	p := approval.PrincipalRef{Sub: r.Principal, Kind: r.PrincipalKind}
 	if r.Requester != "" && r.Requester != r.Principal {
-		p.Act = []approval.Party{{Sub: r.Requester}}
+		p.Act = []approval.Party{{Sub: r.Requester, Kind: firstNonEmpty(r.Evidence["requester_kind"], KindHuman)}}
 	}
-	return p, approval.Requested{Action: r.Action, Audience: r.Audience, Scopes: r.Scopes, TTLSeconds: r.TTLSeconds, Constraints: r.Constraints}
+	q := approval.Requested{Audience: r.Audience, Scopes: r.Scopes, TTLSeconds: r.TTLSeconds, Constraints: r.Constraints}
+	if q.Audience == "" {
+		q.Audience, q.Scopes = Audience, policy.BaseScopes
+	}
+	if q.TTLSeconds <= 0 {
+		q.TTLSeconds = int64(cfg.MaxGrantTTL.Seconds())
+	}
+	return p, q
 }
 
-func (r *Request) seal() {
-	p, q := r.approvalRef()
+func (s *Service) seal(r *Request) {
+	p, q := r.approvalRef(s.cfg)
 	r.digest = approval.Digest(p, q, r.Tier)
+}
+
+// purposeLine is the text the approver reads: what is asked, then the requester's own words.
+func (r Request) purposeLine() string {
+	var head string
+	switch policy.Action(r.Action) {
+	case policy.ActionEnroll:
+		head = "Enroll " + r.PrincipalKind + " " + r.Principal
+		if d := r.Evidence["display"]; d != "" {
+			head += " (" + d + ")"
+		}
+		if par := r.Evidence["parent"]; par != "" {
+			head += " under " + par
+		}
+	case policy.ActionDevice:
+		head = "Device sign-in as " + r.PrincipalKind + " " + r.Principal + ", code " + r.Evidence["user_code"]
+	default:
+		return cleanText(r.Purpose, 1024)
+	}
+	if r.Purpose != "" {
+		head += ": " + r.Purpose
+	}
+	return cleanText(head, 1024)
 }
 
 func cleanText(s string, n int) string {
@@ -190,7 +223,10 @@ func (s *Service) CreateRequest(ctx context.Context, c Caller, in RequestInput) 
 		return Request{}, err
 	}
 	r.Tier, r.Rule = string(v.Tier), v.Rule
-	r.seal()
+	if c.Sub != sub {
+		r.Evidence["requester_kind"] = c.Kind
+	}
+	s.seal(&r)
 	switch {
 	case v.Tier == policy.Refused:
 		r.Status = string(approval.Denied)
@@ -202,7 +238,7 @@ func (s *Service) CreateRequest(ctx context.Context, c Caller, in RequestInput) 
 		}
 	default:
 		r.Status = string(approval.Pending)
-		if v.ApproverClass != "" {
+		if v.ApproverClass != "" && v.Tier == policy.Elevated {
 			r.Evidence["approver_class"] = v.ApproverClass
 		}
 	}
@@ -232,12 +268,15 @@ func (s *Service) submit(ctx context.Context, r *Request) {
 	if s.approver == nil || r.ApprovalID != "" {
 		return
 	}
-	p, q := r.approvalRef()
+	p, q := r.approvalRef(s.cfg)
 	ar := approval.Request{IdempotencyKey: r.ID, Source: "warden", Kind: "credential_grant", Tier: r.Tier,
-		ApproverClass: r.Evidence["approver_class"], Principal: p, Requested: q, Purpose: r.Purpose, Evidence: r.Evidence,
+		ApproverClass: r.Evidence["approver_class"], Principal: p, Requested: q, Purpose: r.purposeLine(),
+		Evidence:      approval.Evidence{TaskID: r.Evidence["task_id"], SessionID: r.Evidence["session_id"], PolicyRule: r.Rule},
 		RequestDigest: r.digest, ExpiresAt: r.ExpiresAt}
 	if ar.Tier != string(policy.Elevated) {
 		ar.ApproverClass = ""
+	} else if ar.ApproverClass == "" {
+		ar.ApproverClass = "approve.credentials"
 	}
 	t, err := s.approver.Submit(ctx, ar)
 	if err != nil {
@@ -379,9 +418,9 @@ func (s *Service) Sync(ctx context.Context, id string, wait time.Duration) error
 		return s.finish(ctx, r.ID, string(t.Status), "gatecrasher", "")
 	case approval.Approved, approval.Denied:
 	}
-	p, q := r.approvalRef()
+	_, q := r.approvalRef(s.cfg)
 	d, err := s.decide.Verify(ctx, t.Decision, approval.Expect{Issuer: s.cfg.GatecrasherIssuer, ApprovalID: r.ApprovalID, RequestID: r.ID,
-		Digest: approval.Digest(p, q, r.Tier), Tier: r.Tier, Requested: q, NotDeciders: []string{r.Principal, r.Requester}})
+		Digest: r.digest, Tier: r.Tier, Requested: q, NotDeciders: []string{r.Principal, r.Requester}, Owner: s.cfg.ApprovalOwner})
 	if err != nil {
 		if errors.Is(err, approval.ErrDecision) {
 			slog.Error("warden: refusing an approval decision", "request", r.ID, "err", err)

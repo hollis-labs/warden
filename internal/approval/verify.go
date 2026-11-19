@@ -69,6 +69,8 @@ func LoadJWKSFile(path string) (StaticKeys, error) {
 type RemoteKeys struct {
 	URL    string
 	Client *http.Client
+	// Token, when set, is the bearer for the JWKS read (Gatecrasher serves it under gatecrasher.approval.read).
+	Token func(ctx context.Context) (string, error)
 
 	mu      sync.Mutex
 	keys    StaticKeys
@@ -92,6 +94,13 @@ func (r *RemoteKeys) Key(ctx context.Context, kid string) (ed25519.PublicKey, er
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.URL, nil)
 	if err != nil {
 		return nil, err
+	}
+	if r.Token != nil {
+		tok, terr := r.Token(ctx)
+		if terr != nil {
+			return nil, fmt.Errorf("approval: credential: %w", terr)
+		}
+		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 	resp, err := c.Do(req) //nolint:gosec // G704: the operator-configured Gatecrasher JWKS URL
 	if err != nil {
@@ -126,6 +135,8 @@ type Expect struct {
 	Requested  Requested
 	// NotDeciders may not decide their own request (the principal and the requester).
 	NotDeciders []string
+	// Owner, when set, is the only principal that may decide a critical request.
+	Owner string
 }
 
 // Verifier checks signed decisions.
@@ -202,7 +213,7 @@ func (v Verifier) Verify(ctx context.Context, jws string, want Expect) (Decision
 	}
 	switch want.Tier {
 	case "critical":
-		if d.Decider.Kind != "human" {
+		if d.Decider.Kind != "human" || (want.Owner != "" && d.Decider.Sub != want.Owner) {
 			return bad("critical needs the owner")
 		}
 	case "elevated":

@@ -69,6 +69,9 @@ type Config struct {
 	VerificationURI string
 	// GatecrasherIssuer is the iss of signed decisions.
 	GatecrasherIssuer string
+	// ApprovalOwner, when set, is the only decider Warden accepts for a critical request (Gatecrasher's owner
+	// principal id). Unset, any human decider is accepted.
+	ApprovalOwner string
 	// MaxPendingEnrollments bounds the open enrollment endpoint.
 	MaxPendingEnrollments int
 }

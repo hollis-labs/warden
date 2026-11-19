@@ -53,8 +53,30 @@ func (f *Fake) now() time.Time {
 	return time.Now()
 }
 
-// Submit implements Approver.
+// Submit implements Approver. It refuses what Gatecrasher's server refuses (its submit validation and
+// digest recomputation), so tests against the fake exercise the real contract.
 func (f *Fake) Submit(_ context.Context, r Request) (Ticket, error) {
+	switch {
+	case r.IdempotencyKey == "" || r.Source != "warden" || r.Kind == "":
+		return Ticket{}, errors.New("approval: fake: idempotency_key, source and kind are required")
+	case r.Tier != "elevated" && r.Tier != "critical" && r.Tier != "ground":
+		return Ticket{}, errors.New("approval: fake: bad tier")
+	case (r.Tier == "elevated") != (r.ApproverClass != ""):
+		return Ticket{}, errors.New("approval: fake: approver_class is required for elevated and only for elevated")
+	case r.Principal.Sub == "" || r.Principal.Kind == "":
+		return Ticket{}, errors.New("approval: fake: principal needs sub and kind")
+	case r.Requested.Audience == "" || r.Requested.TTLSeconds <= 0:
+		return Ticket{}, errors.New("approval: fake: requested needs audience and a positive ttl_seconds")
+	case !r.ExpiresAt.After(f.now()) || r.ExpiresAt.Sub(f.now()) > 30*24*time.Hour:
+		return Ticket{}, errors.New("approval: fake: expires_at must be in the future and within 30 days")
+	case Digest(r.Principal, r.Requested, r.Tier) != r.RequestDigest:
+		return Ticket{}, errors.New("approval: fake: request_digest does not match the request")
+	}
+	for _, a := range r.Principal.Act {
+		if a.Sub == "" || a.Kind == "" {
+			return Ticket{}, errors.New("approval: fake: every act entry needs sub and kind")
+		}
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if id, ok := f.byKey[r.IdempotencyKey]; ok {

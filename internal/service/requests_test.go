@@ -114,7 +114,7 @@ func TestDecisionBinding(t *testing.T) {
 	base := approval.Decision{Iss: "gatecrasher", Aud: "warden", ApprovalID: r.ApprovalID, RequestID: r.ID, Outcome: approval.Approved,
 		Tier: "critical", Decider: approval.Party{Sub: "user:1", Kind: "human"}, DecidedAt: now, Exp: now.Add(5 * time.Minute).Unix()}
 	p := approval.PrincipalRef{Sub: r.Principal, Kind: r.PrincipalKind}
-	req := approval.Requested{Action: r.Action, Audience: r.Audience, Scopes: r.Scopes, TTLSeconds: r.TTLSeconds}
+	req := approval.Requested{Audience: r.Audience, Scopes: r.Scopes, TTLSeconds: r.TTLSeconds}
 	want := approval.Expect{ApprovalID: r.ApprovalID, RequestID: r.ID, Digest: approval.Digest(p, req, r.Tier), Tier: r.Tier, Requested: req}
 	good := base
 	good.RequestDigest = want.Digest

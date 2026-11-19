@@ -102,6 +102,7 @@ func (s *Service) Enroll(ctx context.Context, caller *Caller, in EnrollInput) (E
 	if caller != nil {
 		f.Requester, f.RequesterKind, f.RequesterAdmin = caller.Sub, caller.Kind, caller.Admin && caller.Human
 		r.Requester = caller.Sub
+		r.Evidence["requester_kind"] = caller.Kind
 	}
 	if in.Display != "" {
 		r.Evidence["display"] = cleanText(in.Display, 128)
@@ -118,10 +119,10 @@ func (s *Service) Enroll(ctx context.Context, caller *Caller, in EnrollInput) (E
 	if v.Tier == policy.Refused {
 		r.Status = string(approval.Denied)
 	}
-	if v.ApproverClass != "" {
+	if v.ApproverClass != "" && v.Tier == policy.Elevated {
 		r.Evidence["approver_class"] = v.ApproverClass
 	}
-	r.seal()
+	s.seal(&r)
 	poll := pollPrefix + randomString(32)
 	e := Enrollment{ID: newID("enr"), RequestID: r.ID, Status: "pending", Tier: r.Tier, PollToken: poll, Interval: 5, ExpiresAt: r.ExpiresAt}
 	if r.Status == string(approval.Denied) {
@@ -315,10 +316,10 @@ func (s *Service) DeviceAuthorize(ctx context.Context, in DeviceInput) (DeviceAu
 		return DeviceAuth{}, err
 	}
 	r.Tier, r.Rule, r.Status = string(v.Tier), v.Rule, string(approval.Pending)
-	r.seal()
 	code := devicePrefix + randomString(32)
 	uc := userCode()
 	r.Evidence["user_code"] = uc
+	s.seal(&r)
 	err = s.st.WriteTx(ctx, func(ctx context.Context, tx store.Tx) error {
 		if err = s.insertRequest(ctx, tx, &r); err != nil {
 			return err
