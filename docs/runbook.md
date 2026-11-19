@@ -125,3 +125,22 @@ critical).
    `llm-gateway.embed`.
 
 Rollback: revoke the grant (`warden grants revoke`) and switch Surface back to its hand-issued key.
+
+## Postgres
+
+Warden runs on SQLite (the default) or Postgres through the Substrate database module. The two migration
+directories under `internal/storage/migrations/` are kept in parity (`TestMigrationParity`), and CI runs
+the service suite on both. For Postgres:
+
+```yaml
+database:
+  driver: postgres
+  schema_mode: auto                 # Warden applies its own migrations with the migration login
+  postgres:
+    dsn_file: ~/.config/warden/pg-runtime.dsn          # 0600; the runtime login's connection string
+    migrate_dsn_file: ~/.config/warden/pg-migrate.dsn  # 0600; the migration login, used only to migrate
+```
+
+The connection strings are secrets: compose them file to file from the provisioned password files, never
+in config or on a command line. Put the schema in the DSN (`search_path`), and when migrations must run as
+the schema owner, set the role at connection start in the migration DSN (`options=-c role=<owner>`).

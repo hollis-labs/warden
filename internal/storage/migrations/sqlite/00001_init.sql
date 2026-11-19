@@ -1,7 +1,8 @@
 -- Warden's schema, one migration. Until the first release this is the ONLY migration: a schema change
 -- edits this file, because there are no deployed databases to migrate. After the first release changes
--- are new numbered files. Milestone 1 is SQLite (the database module); Postgres follows when Cerberus
--- provisions it. Times are RFC 3339 UTC text. No table holds a secret: parent credentials, poll tokens
+-- are new numbered files. The sqlite and postgres directories stay in parity (same versions, same tables
+-- and columns); only types differ. Times are fixed-width RFC 3339 UTC text in both, so they compare as
+-- strings. No table holds a secret: parent credentials, poll tokens
 -- and device codes are stored as SHA-256 hashes only.
 --
 -- Not here, on purpose: the owner's account, password, sessions and API keys are the identity module's
