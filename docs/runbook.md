@@ -58,3 +58,70 @@ monorepo tags are `./vX.Y.Z` when the location is not `.`. The generated
 release workflow validates the project prefix and version, builds the selected target, and publishes
 artifacts with SHA256SUMS. Signing can be added when an approved signing facility is available.
 Folio generation and `deploy render` never create tags, releases, installations or live services.
+
+## Warden configuration
+
+The `warden:` block of the config file (see `internal/settings/settings.go` for every key):
+
+```yaml
+httphost: { addr: "127.0.0.1:8080" }
+warden:
+  public_url: https://warden.example      # what clients use; also the token issuer (iss) unless `issuer` is set
+  allowed_hosts: [warden.example]         # Host names served beyond loopback
+  policy_file: ""                         # empty: the embedded starter rules (internal/policy/default-rules.yaml)
+  approvals:
+    mode: gatecrasher                     # fake (development), gatecrasher, or off (elevated/critical stay pending)
+    url: https://gatecrasher.example
+    jwks_url: https://gatecrasher.example/api/gate/v1/jwks.json   # or jwks_file: a pinned JWKS
+    token_file: ~/.config/warden/gatecrasher.token                 # 0600; the bearer Warden presents
+    owner: human:owner                                             # Gatecrasher approvals.owner.sub: the only critical decider
+```
+
+Resource servers trust Warden with the auth module's existing settings: `auth.issuer` = Warden's issuer,
+`auth.jwks_url` = `<public_url>/.well-known/jwks.json`, `auth.denylist_url` = `<public_url>/v1/denylist`,
+audience = the app's id. Nothing else changes in them.
+
+## State Warden owns
+
+Keep these together, back them up together, and never commit them:
+
+- `$WARDEN_DATA_DIR/warden.db` holds principals, grants, families, hashed parents, requests, the
+  deny-list and the audit log.
+- `$WARDEN_DATA_DIR/issuer/` holds the signing keys (`<kid>.key`, 0600), `keys.json` and `jwks.json`.
+  Losing these invalidates every live token. Clients recover by refreshing once a new key exists, because
+  parent credentials do not depend on the signing key.
+- `$WARDEN_DATA_DIR/identity-signing.key` and the identity tables hold the owner's sign-in.
+
+Keys rotate automatically every 30 days. Rotate by hand with `POST /api/v1/keys/rotate` (owner): the old
+key keeps verifying for 70 minutes.
+
+## Day-two operations (owner)
+
+```sh
+export WARDEN_URL=https://warden.example WARDEN_TOKEN_FILE=~/.config/warden/owner.key
+warden request list --all --status pending        # what is waiting
+warden grants --principal app:surface             # what a principal holds
+warden grants revoke grt_…  --reason "rotated"    # revoke; its live tokens are denied at once
+warden device approve BCDF-GHJK                   # approve a device sign-in (or --deny)
+curl -H "Authorization: Bearer $(cat $WARDEN_TOKEN_FILE)" $WARDEN_URL/api/v1/audit
+curl -X POST -H "Authorization: Bearer $(cat $WARDEN_TOKEN_FILE)" -d '{"sub":"agent:x","reason":"leaked"}' $WARDEN_URL/api/v1/principals/disable
+```
+
+A replayed parent credential revokes its family on its own. The audit log shows `family.revoke` with
+reason `reuse detected`. The legitimate holder re-enrolls, and the owner approves it (re-enrollment is
+critical).
+
+## Pilot: the Surface classifier's llm-gateway key
+
+1. The owner enrolls Surface (approved at once, because the owner asked):
+   `warden enroll --token-file owner.key --sub app:surface --kind app --out ~/.config/surface/warden.token`
+2. Surface requests its grant, which is ground tier and granted at once:
+   `warden request --credential ~/.config/surface/warden.token --audience llm-gateway --scope llm-gateway.decide,llm-gateway.embed`
+3. Surface mints 60-minute tokens and the parent file rotates:
+   `warden token --credential ~/.config/surface/warden.token --audience llm-gateway`.
+   In Go, use `client.Minter{...}.Refresher()`.
+4. llm-gateway trusts Warden. This is the llm-gateway owner's change, routed through Cerberus:
+   `auth.issuer`, `auth.jwks_url` and `auth.denylist_url` as above, plus scopes `llm-gateway.decide` and
+   `llm-gateway.embed`.
+
+Rollback: revoke the grant (`warden grants revoke`) and switch Surface back to its hand-issued key.

@@ -48,6 +48,7 @@ func run(ctx context.Context) error {
 func newRoot(ctx context.Context, app *module.App) *cobra.Command {
 	root := cli.Root(app)
 	root.AddCommand(serveCmd(ctx, app))
+	root.AddCommand(clientCommands()...)
 	if c, _, _ := root.Find([]string{"identity"}); c == nil || c == root {
 		// The identity module did not start (nothing that writes starts for a print-only command): help text only.
 		root.AddCommand(&cobra.Command{Use: "identity", Short: "Create the owner and API keys offline: identity setup, identity key create"})

@@ -3,25 +3,28 @@ module github.com/hollis-labs/warden
 go 1.26.11
 
 require (
+	github.com/google/uuid v1.6.0
+	github.com/hollis-labs/libs/core/store v0.1.0
+	github.com/hollis-labs/libs/mcp/plugin-mcp v0.6.0
 	github.com/hollis-labs/libs/security/auth v0.3.1
+	github.com/hollis-labs/libs/security/policy v0.1.0
+	github.com/hollis-labs/libs/security/secrets v0.1.0
 	github.com/hollis-labs/substrate v0.1.1-0.20261119160643-9fd1a312ed78
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
+	github.com/cyberphone/json-canonicalization v0.0.0-20261011152517-32a48195b9b2 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/hollis-labs/libs/app/app-host v0.1.0 // indirect
 	github.com/hollis-labs/libs/core/panics v0.1.0 // indirect
-	github.com/hollis-labs/libs/core/store v0.1.0 // indirect
 	github.com/hollis-labs/libs/core/util v0.11.1 // indirect
-	github.com/hollis-labs/libs/mcp/plugin-mcp v0.6.0 // indirect
 	github.com/hollis-labs/libs/security/redact v0.2.0 // indirect
-	github.com/hollis-labs/libs/security/secrets v0.1.0 // indirect
 	github.com/hollis-labs/libs/ui/ui-go v0.4.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -47,7 +50,6 @@ require (
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.78.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect

@@ -1,18 +1,34 @@
 # warden
 
-Shared credentials service: one issuer, token exchange, tiered grants and a vault for non-human principals
+Warden issues and manages credentials for non-human principals: one issuer, token exchange and refresh,
+tiered grants, and a vault (milestone 2).
 
-It is not: TODO(author) — the mistake this repo attracts.
+It is not: an approval UI (Gatecrasher owns approvals), a place people sign in, the registry of who exists
+(the Registry is), or a place a secret is ever stored or logged in plaintext.
 
 ## Start Here
 
-- `cmd/warden/substrate.yaml` — the manifest: modules and config defaults. `substrate_wiring.go` is generated from it (`substrate generate`); never edit it.
-- `cmd/warden/serve.go` — the HTTP handler stack: Host check, identity middleware, the host (guard, routes, SPA).
-- `internal/api/api.go` — every route and the scope it needs. The owner of a row is the verified principal, never a request field.
-- `internal/service/service.go` — the service layer, the only code that runs SQL; handlers call it. `.golangci.transport.yml` (second lint run) enforces that; `docs/transport-boundary.md` says how.
-- `internal/storage/migrations/sqlite/00001_init.sql` — the schema. Until the first release this is the only migration.
-- `docs/identity-bootstrap.md` — the owner is created offline; there is no open setup over HTTP.
-- `.github/workflows/check.yml` — the full CI gate (vet, pins, wiring current, race tests, both lint runs, scan-public).
+- `README.md`: what Warden is, the token rules and the endpoints.
+- `cmd/warden/serve.go`: the composition root. It wires settings, policy, the approver (fake or
+  Gatecrasher), the service, scopes, MCP tools, the routes and mounts, and the background workers.
+- `cmd/warden/config.go`: opens the issuer keys before boot, so the auth module verifies Warden's own
+  tokens in process.
+- `internal/issuer/`: Ed25519 key ring (rotation with overlap, JWKS) and the JWT format. Pure crypto and
+  files.
+- `internal/service/`: the only code that runs SQL. `tokens.go` covers refresh, rotation, reuse
+  detection, mint and exchange. `requests.go` covers tiers and Gatecrasher sync. `enroll.go` covers
+  enrollment and the device flow. `revoke.go` covers revocation and audit.
+- `internal/policy/`: the tier PDP (a libs/security/policy PDP), its fixed floors, and
+  `default-rules.yaml`.
+- `internal/approval/`: the Gatecrasher contract, the signed-decision verifier, the HTTP client and the
+  fake.
+- `internal/vault/`: milestone-2 skeleton. It defines `warden://` refs, envelope encryption and the
+  Backend interface.
+- `internal/api/`: `api.go` holds the guarded `/api/v1` routes and their scopes. `protocol.go` holds the
+  open protocol endpoints.
+- `client/`: the public Go client and the rotation-aware Minter that apps plug into libs auth's
+  Refresher.
+- `docs/gatecrasher-contract.md`, `docs/runbook.md`.
 
 ## Commands
 
@@ -20,14 +36,29 @@ It is not: TODO(author) — the mistake this repo attracts.
 gofmt -l .
 go vet ./...
 go test -race -count=1 ./...
+GOWORK=off golangci-lint run ./...
+GOWORK=off golangci-lint run --config .golangci.transport.yml ./...
+go run github.com/hollis-labs/substrate/cmd/substrate scan-public --ref HEAD
 ```
 
 CI (`.github/workflows/check.yml`) is the full gate.
 
 ## Boundaries
 
-- Pins are edited only in the Substrate `bom/bom.yaml`: run `substrate pins sync --app .`, never hand-edit a version in `go.mod`.
-- Transports (`internal/api`, later `internal/mcp`, `internal/cli`) never import `internal/storage`, the Substrate `database` module or `database/sql`; go through `internal/service`.
-- A route without a scope is refused in `enforce`: add it to `Routes()` in `internal/api/api.go` (`TestEveryRouteHasAScope` guards this).
-- Reads go through `Reader()`, writes through `WriteTx` or one `ExecContext`; never write while a cursor is open on the write handle (SQLite has one write connection).
-- No secret, host name, address or personal path in a file, a commit or CI: `substrate scan-public --ref HEAD` must stay clean.
+- Never weaken a token rule without its test: narrowing-only scopes, one audience per token bound to a
+  grant, rotate-on-use parents with reuse detection, short TTLs, and deny on revoke.
+- The policy floors in `internal/policy/policy.go` encode the owner's 2026-11-19 ruling. Do not move them
+  into the rules file.
+- Warden builds no approval UI. Elevated and critical requests go to Gatecrasher, and only a decision
+  Gatecrasher signed is acted on. A `request_secret` value goes write-only to Warden, never through
+  Gatecrasher or a model transcript.
+- No secret in plaintext. Store parent credentials, poll tokens and device codes as hashes only, and
+  never log a token.
+- Do not change other repos from here (Tether, Substrate, libs, llm-gateway, mcp-gateway). Write the ask
+  down and route it.
+- Edit pins only in the Substrate `bom/bom.yaml`, then run `substrate pins sync --app .`.
+- Transports (`internal/api`, `internal/mcp`) never import `internal/storage`, the database module or
+  `database/sql`.
+- A guarded route without a scope is refused. Add it to `Routes()` (`TestEveryRouteHasAScope`).
+- No secret, host name, address or personal path in a file, a commit or CI. `substrate scan-public`
+  must stay clean. Deployment descriptors are templates with no target hosts.

@@ -1,10 +1,18 @@
-// Package api is the app's HTTP API. The guard (httphost and the auth module) and the CSRF check
-// (the identity middleware) sit outside it; /healthz is the framework's.
+// Package api is Warden's HTTP API. Two halves:
+//
+//   - Protocol endpoints, open (no guard) because they authenticate themselves or are public discovery:
+//     /.well-known/jwks.json, /.well-known/oauth-authorization-server, /v1/denylist, /v1/token,
+//     /v1/enroll, /v1/enroll/{id}/poll, /v1/device/code, /v1/device.
+//   - The management API under /api/v1/, behind the Substrate guard, one scope per route (Routes()).
+//
+// Handlers decode, call the service layer and encode. They hold no SQL (docs/transport-boundary.md).
 package api
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -14,98 +22,393 @@ import (
 	"github.com/hollis-labs/warden/internal/service"
 )
 
-// Scopes the API requires. The owner holds "*".
+// Scopes on Warden's own audience.
 const (
-	ScopeRead  = "warden.read"
-	ScopeWrite = "warden.write"
+	ScopeRead    = "warden.read"
+	ScopeRequest = "warden.request"
+	ScopeAdmin   = "warden.admin"
 )
 
-// Route is one API route and the scope it needs. Every route is listed here, so the scope table
-// and the mux cannot disagree (TestEveryRouteHasAScope).
+// Route is one guarded API route and the scope it needs. Every guarded route is listed here, so the scope
+// table and the mux cannot disagree (TestEveryRouteHasAScope).
 type Route struct{ Method, Pattern, Scope string }
 
-// Routes lists every route with its scope. A route missing here is refused in enforce mode.
-func Routes() []Route {
-	routes := []Route{
-		{http.MethodGet, "/api/items", ScopeRead},
-		{http.MethodPost, "/api/items", ScopeWrite},
+// Routes lists every guarded route with its scope. Specific patterns come first (first match wins).
+func Routes(dev bool) []Route {
+	r := []Route{
+		{http.MethodGet, "/api/v1/whoami", ScopeRead},
+		{http.MethodPost, "/api/v1/requests", ScopeRequest},
+		{http.MethodGet, "/api/v1/requests", ScopeRead},
+		{http.MethodGet, "/api/v1/requests/{id}", ScopeRead},
+		{http.MethodPost, "/api/v1/requests/{id}/withdraw", ScopeRequest},
+		{http.MethodGet, "/api/v1/grants", ScopeRead},
+		{http.MethodGet, "/api/v1/grants/{id}", ScopeRead},
+		{http.MethodPost, "/api/v1/grants/{id}/revoke", ScopeRequest},
+		{http.MethodGet, "/api/v1/families", ScopeRead},
+		{http.MethodPost, "/api/v1/families/{id}/revoke", ScopeRequest},
+		{http.MethodPost, "/api/v1/enroll", ScopeRequest},
+		{http.MethodPost, "/api/v1/device/approve", ScopeAdmin},
+		{http.MethodPost, "/api/v1/principals/disable", ScopeAdmin},
+		{http.MethodGet, "/api/v1/audit", ScopeAdmin},
+		{http.MethodPost, "/api/v1/keys/rotate", ScopeAdmin},
 	}
-	return routes
+	if dev {
+		r = append(r,
+			Route{http.MethodGet, "/api/v1/dev/approvals", ScopeAdmin},
+			Route{http.MethodPost, "/api/v1/dev/approvals/{id}/decide", ScopeAdmin})
+	}
+	return r
 }
 
-// RegisterScopes declares the scope of every route on the guard's table.
-func RegisterScopes(t *libauth.ScopeTable) {
-	for _, rt := range Routes() {
+// RegisterScopes declares the scope of every guarded route on the guard's table.
+func RegisterScopes(t *libauth.ScopeTable, dev bool) {
+	for _, rt := range Routes(dev) {
 		t.Route(rt.Method, rt.Pattern, rt.Scope)
 	}
 }
 
-// Items is what the handlers need from the service layer (internal/service implements it).
-type Items interface {
-	ListItems(ctx context.Context, owner string) ([]service.Item, error)
-	CreateItem(ctx context.Context, owner, title string) (int64, error)
+// Fake is the dev approval hook (approvals.mode: fake); nil otherwise.
+type Fake interface {
+	PendingJSON() any
+	Decide(id, outcome, decider string) error
 }
 
-// Handler serves the routes over the service layer. It holds no SQL and no store.
-type Handler struct{ items Items }
+// Handler serves Warden's routes over the service layer.
+type Handler struct {
+	svc  *service.Service
+	meta Metadata
+	fake Fake
+}
 
 // New builds the handler.
-func New(items Items) *Handler { return &Handler{items: items} }
+func New(svc *service.Service, meta Metadata, fake Fake) *Handler {
+	return &Handler{svc: svc, meta: meta, fake: fake}
+}
 
-// Mux returns the routes for httphost.Options.Routes.
+// Mux returns the guarded routes for httphost.Options.Routes.
 func (h *Handler) Mux() *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/items", h.list)
-	mux.HandleFunc("POST /api/items", h.create)
+	mux.HandleFunc("GET /api/v1/whoami", h.whoami)
+	mux.HandleFunc("POST /api/v1/requests", h.createRequest)
+	mux.HandleFunc("GET /api/v1/requests", h.listRequests)
+	mux.HandleFunc("GET /api/v1/requests/{id}", h.getRequest)
+	mux.HandleFunc("POST /api/v1/requests/{id}/withdraw", h.withdraw)
+	mux.HandleFunc("GET /api/v1/grants", h.listGrants)
+	mux.HandleFunc("GET /api/v1/grants/{id}", h.getGrant)
+	mux.HandleFunc("POST /api/v1/grants/{id}/revoke", h.revokeGrant)
+	mux.HandleFunc("GET /api/v1/families", h.listFamilies)
+	mux.HandleFunc("POST /api/v1/families/{id}/revoke", h.revokeFamily)
+	mux.HandleFunc("POST /api/v1/enroll", h.enrollAuthed)
+	mux.HandleFunc("POST /api/v1/device/approve", h.approveDevice)
+	mux.HandleFunc("POST /api/v1/principals/disable", h.disable)
+	mux.HandleFunc("GET /api/v1/audit", h.audit)
+	mux.HandleFunc("POST /api/v1/keys/rotate", h.rotate)
+	if h.fake != nil {
+		mux.HandleFunc("GET /api/v1/dev/approvals", h.devList)
+		mux.HandleFunc("POST /api/v1/dev/approvals/{id}/decide", h.devDecide)
+	}
 	return mux
 }
 
-// owner is the verified principal's subject: the data owner of a row is never a request field.
-func owner(r *http.Request) (string, bool) {
+func caller(w http.ResponseWriter, r *http.Request) (service.Caller, bool) {
 	p, ok := libauth.FromContext(r.Context())
-	if !ok || !p.Verified || strings.TrimSpace(p.ID) == "" {
-		return "", false
-	}
-	return p.ID, true
-}
-
-func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	who, ok := owner(r)
 	if !ok {
 		apierr.Write(w, http.StatusUnauthorized, "unauthorized", "Sign in required", nil)
-		return
+		return service.Caller{}, false
 	}
-	items, err := h.items.ListItems(r.Context(), who)
-	if err != nil {
-		apierr.Write(w, http.StatusInternalServerError, "internal", "Could not list items", nil)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
-}
-
-func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
-	who, ok := owner(r)
+	c, ok := service.CallerFrom(p)
 	if !ok {
 		apierr.Write(w, http.StatusUnauthorized, "unauthorized", "Sign in required", nil)
-		return
 	}
-	var in struct {
-		Title string `json:"title"`
+	return c, ok
+}
+
+// fail maps a service error to a status. Messages are the service's (they hold no secret).
+func fail(w http.ResponseWriter, err error) {
+	code, status := "internal", http.StatusInternalServerError
+	switch {
+	case errors.Is(err, service.ErrInvalid), errors.Is(err, service.ErrInvalidScope):
+		code, status = "invalid_request", http.StatusBadRequest
+	case errors.Is(err, service.ErrForbidden):
+		code, status = "forbidden", http.StatusForbidden
+	case errors.Is(err, service.ErrNotFound):
+		code, status = "not_found", http.StatusNotFound
+	case errors.Is(err, service.ErrConflict):
+		code, status = "conflict", http.StatusConflict
+	case errors.Is(err, service.ErrUnavailable):
+		code, status = "unavailable", http.StatusServiceUnavailable
 	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || strings.TrimSpace(in.Title) == "" {
-		apierr.Write(w, http.StatusBadRequest, "invalid_request", "title is required", nil)
-		return
+	msg := "Internal error"
+	if status != http.StatusInternalServerError {
+		msg = service.Describe(err)
+	} else {
+		slog.Error("warden: request failed", "err", err)
 	}
-	id, err := h.items.CreateItem(r.Context(), who, in.Title)
-	if err != nil {
-		apierr.Write(w, http.StatusInternalServerError, "internal", "Could not create the item", nil)
-		return
+	apierr.Write(w, status, code, msg, nil)
+}
+
+func decode(w http.ResponseWriter, r *http.Request, v any) bool {
+	dec := json.NewDecoder(io.LimitReader(r.Body, 64<<10))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		apierr.Write(w, http.StatusBadRequest, "invalid_request", "invalid JSON body: "+err.Error(), nil)
+		return false
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"id": id})
+	return true
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func (h *Handler) whoami(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (h *Handler) createRequest(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	var in service.RequestInput
+	if !decode(w, r, &in) {
+		return
+	}
+	req, err := h.svc.CreateRequest(r.Context(), c, in)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	status := http.StatusCreated
+	if req.Status == "pending" {
+		status = http.StatusAccepted
+	}
+	writeJSON(w, status, req)
+}
+
+func (h *Handler) listRequests(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	rs, err := h.svc.ListRequests(r.Context(), c, r.URL.Query().Get("all") == "true", r.URL.Query().Get("status"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"requests": rs})
+}
+
+func (h *Handler) getRequest(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	req, err := h.svc.GetRequest(r.Context(), c, r.PathValue("id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, req)
+}
+
+func (h *Handler) withdraw(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	req, err := h.svc.Withdraw(r.Context(), c, r.PathValue("id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, req)
+}
+
+func (h *Handler) listGrants(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	gs, err := h.svc.ListGrants(r.Context(), c, r.URL.Query().Get("principal"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"grants": gs})
+}
+
+func (h *Handler) getGrant(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	g, err := h.svc.GetGrant(r.Context(), c, r.PathValue("id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, g)
+}
+
+type reasonBody struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+func (h *Handler) revokeGrant(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	var in reasonBody
+	if r.ContentLength != 0 && !decode(w, r, &in) {
+		return
+	}
+	g, err := h.svc.RevokeGrant(r.Context(), c, r.PathValue("id"), in.Reason)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, g)
+}
+
+func (h *Handler) listFamilies(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	fs, err := h.svc.ListFamilies(r.Context(), c, r.URL.Query().Get("principal"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"families": fs})
+}
+
+func (h *Handler) revokeFamily(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	var in reasonBody
+	if r.ContentLength != 0 && !decode(w, r, &in) {
+		return
+	}
+	if err := h.svc.RevokeFamily(r.Context(), c, r.PathValue("id"), in.Reason); err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"revoked": r.PathValue("id")})
+}
+
+func (h *Handler) enrollAuthed(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	h.enrollAs(w, r, &c)
+}
+
+func (h *Handler) approveDevice(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		UserCode string `json:"user_code"`
+		Deny     bool   `json:"deny,omitempty"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	req, err := h.svc.ApproveDevice(r.Context(), c, in.UserCode, !in.Deny)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, req)
+}
+
+func (h *Handler) disable(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Sub    string `json:"sub"`
+		Reason string `json:"reason,omitempty"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if err := h.svc.DisablePrincipal(r.Context(), c, in.Sub, in.Reason); err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"disabled": in.Sub})
+}
+
+func (h *Handler) audit(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	es, err := h.svc.Audit(r.Context(), c, r.URL.Query().Get("subject"), 100)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"audit": es})
+}
+
+func (h *Handler) rotate(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	kids, err := h.svc.RotateKeys(r.Context(), c)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"kids": kids})
+}
+
+func (h *Handler) devList(w http.ResponseWriter, r *http.Request) {
+	if _, ok := caller(w, r); !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"approvals": h.fake.PendingJSON()})
+}
+
+func (h *Handler) devDecide(w http.ResponseWriter, r *http.Request) {
+	c, ok := caller(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Outcome string `json:"outcome"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if err := h.fake.Decide(r.PathValue("id"), in.Outcome, c.Sub); err != nil {
+		apierr.Write(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"decided": r.PathValue("id"), "outcome": in.Outcome})
+}
+
+// bearer reads an Authorization: Bearer value.
+func bearer(r *http.Request) (string, bool) {
+	v := r.Header.Get("Authorization")
+	tok, ok := strings.CutPrefix(v, "Bearer ")
+	return strings.TrimSpace(tok), ok && strings.TrimSpace(tok) != ""
 }
