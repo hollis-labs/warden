@@ -152,6 +152,9 @@ database:
 
 Deploy order:
 
+0. **First install only.** fleet-install rolls back when the health check fails, and a new service is not
+   up yet (no owner, schema not migrated). Point the symlink at the new release by hand for the first
+   install, then use fleet-install for later ones.
 1. Run `warden db migrate --store data` with the migration login. It must become the schema owner, so set
    the role at connection start: add `options=-c role=<owner>` to the migration DSN.
 2. Start Warden. It verifies the schema and refuses to start while the schema is behind.
