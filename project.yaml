@@ -15,6 +15,7 @@ interfaces:
   - { type: daemon, name: warden, auth: enforce }
   - { type: api, name: warden API, auth: enforce }
   - { type: mcp, name: warden MCP, auth: enforce }
+  - { type: cli, name: warden, auth: enforce }
 substrate: { variant: app-host, profile: agentic, version: v0.1.1-0.20261119160643-9fd1a312ed78 }
 deploy: { fleet: deploy.yaml, cerberus: warden.cerberus.yaml }
 release: { tagging: semver }

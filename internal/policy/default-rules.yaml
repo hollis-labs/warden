@@ -1,0 +1,52 @@
+# Warden starter rules. First match wins; the fixed floors in policy.go run first and cannot be
+# lowered here (admin or wildcard scopes, user/* data, authority over Warden, human principals,
+# device sign-in, re-enrollment and requests for another principal are always critical; renewals
+# inside an existing grant are always ground). Copy this file and set warden.policy_file to change it.
+version: 1
+default: critical
+rules:
+  - id: warden-base
+    description: every principal may read its own state, file requests and use MCP on Warden
+    audience: warden
+    scopes: [warden.mcp, warden.read, warden.request]
+    self: true
+    tier: ground
+
+  - id: llm-gateway-use
+    description: LLM use (chat, decide, embed, usage) for the caller itself, up to 30 days per grant
+    kinds: [agent, session, app]
+    audience: llm-gateway
+    scopes: [llm-gateway.chat, llm-gateway.decide, llm-gateway.embed, llm-gateway.usage]
+    max_ttl: 720h
+    self: true
+    tier: ground
+
+  - id: read-scopes
+    description: read-only scopes on any app for the caller itself, up to 30 days
+    kinds: [agent, session, app, machine]
+    audience: "*"
+    verbs: [read, list, get, search]
+    max_ttl: 720h
+    self: true
+    tier: ground
+
+  - id: enroll-workload
+    description: a new agent, app or machine enrolls; an approver agent confirms it
+    actions: [enroll]
+    kinds: [agent, app, machine]
+    tier: elevated
+    approver_class: approve.enroll
+
+  - id: enroll-own-session
+    description: an agent enrolls a session it is launching (the session's parent is the caller)
+    actions: [enroll]
+    kinds: [session]
+    self: true
+    tier: ground
+
+  - id: enroll-session
+    description: a new session principal under an existing agent
+    actions: [enroll]
+    kinds: [session]
+    tier: elevated
+    approver_class: approve.enroll

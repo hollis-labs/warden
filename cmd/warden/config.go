@@ -8,11 +8,21 @@ import (
 	"slices"
 	"strings"
 
+	libauth "github.com/hollis-labs/libs/security/auth"
 	"github.com/hollis-labs/substrate/boot"
 	"github.com/hollis-labs/substrate/module"
+	"github.com/hollis-labs/substrate/modules/auth"
 	"github.com/hollis-labs/substrate/modules/database"
 
+	"github.com/hollis-labs/warden/internal/issuer"
+	"github.com/hollis-labs/warden/internal/settings"
 	"github.com/hollis-labs/warden/internal/storage"
+)
+
+// Set by start for serve: the signing keys and the deny-list the auth module's verifier reads.
+var (
+	issuerKeys *issuer.KeyStore
+	denyList   *libauth.DenyList
 )
 
 // dataDirEnv overrides persistent application data. Operator config comes from
@@ -40,6 +50,7 @@ func dataDir() (string, error) {
 type runPlan struct {
 	modules []string
 	prepare bool // create the data directory, resolve paths into it
+	issuer  bool // serve: open the signing keys and hand them to the auth module before boot
 }
 
 // printModules are what help, version, config and health need: none of them opens or creates a file.
@@ -68,7 +79,7 @@ func plan(args []string) runPlan {
 	case len(words) > 0 && words[0] == "serve":
 		cmd := serveCmd(context.Background(), nil)
 		if err := cmd.ParseFlags(args[1:]); err == nil && len(cmd.Flags().Args()) == 0 {
-			return runPlan{modules: substrateModules, prepare: true}
+			return runPlan{modules: substrateModules, prepare: true, issuer: true}
 		}
 	case len(words) > 1 && words[0] == "identity" && (words[1] == "setup" || (words[1] == "key" && len(words) > 2 && words[2] == "create")):
 		return runPlan{modules: substrateModules, prepare: true}
@@ -98,23 +109,42 @@ func start(ctx context.Context, pl runPlan) (*boot.Running, error) {
 			return nil, err
 		}
 		database.UseMigrationFS(storage.Migrations())
+		if pl.issuer {
+			// Warden verifies its own tokens through the same libs verifier every resource server runs, reading
+			// the key ring in process (it cannot fetch its own JWKS before its listener is up).
+			ks, err := issuer.Open(filepath.Join(dir, "issuer"), issuer.DefaultOverlap)
+			if err != nil {
+				return nil, err
+			}
+			issuerKeys, denyList = ks, libauth.NewDenyList()
+			auth.UseKeySource(ks.KeySource)
+			auth.UseDenyList(denyList)
+		}
 		opts.AfterConfig = func(_ context.Context, app *module.App) error {
 			cfg, _ := app.Config["auth"].(map[string]any)
 			if cfg["mode"] != "enforce" {
 				return fmt.Errorf("class 1 applications require auth.mode enforce")
 			}
-			if err := os.MkdirAll(dir, 0o700); err != nil {
+			// The guard accepts Warden tokens with iss = the configured issuer and aud = warden.
+			ws, err := settings.Parse(app.Config[settings.Key])
+			if err != nil {
+				return err
+			}
+			if pl.issuer {
+				cfg["issuer"] = ws.Issuer
+			}
+			if err = os.MkdirAll(dir, 0o700); err != nil {
 				return err
 			}
 			state := os.Getenv("XDG_STATE_HOME")
 			if state == "" {
-				home, err := os.UserHomeDir()
-				if err != nil {
-					return err
+				home, xerr := os.UserHomeDir()
+				if xerr != nil {
+					return xerr
 				}
 				state = filepath.Join(home, ".local", "state")
 			}
-			state, err := filepath.Abs(filepath.Join(state, substrateApp))
+			state, err = filepath.Abs(filepath.Join(state, substrateApp))
 			if err != nil {
 				return err
 			}
