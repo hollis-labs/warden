@@ -1,0 +1,46 @@
+name: warden check
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: warden-check-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the hygiene scan reads history
+      # go.mod is the single Go pin: the `go` line is the floor; an optional `toolchain` line, if
+      # present, wins (setup-go v6+ only).
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - run: go vet ./...
+      - name: pins match the Substrate BOM
+        run: go run github.com/hollis-labs/substrate/cmd/substrate pins check --app .
+      - name: generated wiring is current
+        run: |
+          go run github.com/hollis-labs/substrate/cmd/substrate generate -f cmd/warden/substrate.yaml
+          git diff --exit-code -- cmd/warden/substrate_wiring.go
+      - run: go test -race ./...
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.11.4
+          working-directory: .
+      # The second lint run: transports call the service layer, not the store (docs/transport-boundary.md).
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.11.4
+          working-directory: .
+          args: --config .golangci.transport.yml
+      - name: hygiene (secrets, hosts, private paths)
+        run: go run github.com/hollis-labs/substrate/cmd/substrate scan-public --ref HEAD

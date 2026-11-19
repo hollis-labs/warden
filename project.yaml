@@ -1,0 +1,29 @@
+# Authored project/1 descriptor; Folio never overwrites it.
+schema: project/1
+id: warden
+name: Warden
+description: "Shared credentials service: one issuer, token exchange, tiered grants and a vault for non-human principals"
+class: 1
+lifecycle: experimental
+visibility: public
+owner: agency:hollis-labs
+operator: agency:hollis-labs
+org: hollis-labs
+repo: https://github.com/hollis-labs/warden
+location: .
+interfaces:
+  - { type: daemon, name: warden, auth: enforce }
+  - { type: api, name: warden API, auth: enforce }
+  - { type: mcp, name: warden MCP, auth: enforce }
+substrate: { variant: app-host, profile: agentic, version: v0.1.1-0.20261119160643-9fd1a312ed78 }
+deploy: { fleet: deploy.yaml, cerberus: warden.cerberus.yaml }
+release: { tagging: semver }
+settings:
+  runtime:
+    target_os: linux
+    target_arch: amd64
+    host: fleet-host
+    http_port: 8080
+    binary_link: ~/.local/bin/warden
+    install_root: ~/.local/share/fleet/releases/warden
+    backup_database: ~/.local/share/warden/warden.db
