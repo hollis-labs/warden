@@ -21,4 +21,5 @@ refuses a tag whose CHANGELOG has no heading for it.
 - Gatecrasher gate v1 client (`docs/gatecrasher-contract.md`): the RFC 8785 request digest, pinned to Gatecrasher's vectors; a signed-decision verifier bound to the digest, the tier, the owner and no self-approval; and an in-process fake that applies Gatecrasher's submit validation.
 - Revocation of grants, families and principals, applied to live tokens through the deny-list. Audit log.
 - Vault skeleton: `warden://` references, AES-256-GCM envelope encryption (per-secret DEK, KEK file), Backend interface and memory backend.
+- Postgres store: a postgres migration in parity with sqlite (`TestMigrationParity`); the service suite runs on both in CI. Configure it with the database module's `driver: postgres` and `dsn_file`/`migrate_dsn_file`.
 - `client` package: a rotation-aware Minter for libs auth's Refresher, holding an exclusive lock on the parent file.

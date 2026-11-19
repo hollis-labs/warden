@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -45,7 +46,11 @@ const iss = "https://warden.test"
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	ctx := context.Background()
+	// WARDEN_TEST_DIALECT=postgres (with GOSTORE_TEST_PG_DSN) runs the whole suite on Postgres; CI does both.
 	st := storetest.SQLite(t)
+	if os.Getenv("WARDEN_TEST_DIALECT") == "postgres" {
+		st = storetest.Postgres(t)
+	}
 	fsys, root := storage.Migrations()
 	if err := migrate.UpStore(ctx, st, migrate.Source{FS: fsys, Root: root}); err != nil {
 		t.Fatalf("migrate: %v", err)
