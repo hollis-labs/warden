@@ -18,7 +18,7 @@ warden identity key create --name my-mcp-caller --scope warden.mcp --scope warde
 
 # 3. start, then check
 warden serve --managed # foreground check; use the runbook for Cerberus supervision
-curl -s http://127.0.0.1:8080/api/setup    # {"setup_over_http":false,"setup_required":false}
+curl -s http://127.0.0.1:18212/api/setup    # {"setup_over_http":false,"setup_required":false}
 ```
 
 For automation only, `identity setup` reads the password from the first line of stdin when stdin is not a

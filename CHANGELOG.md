@@ -9,6 +9,10 @@ refuses a tag whose CHANGELOG has no heading for it.
 
 ## Unreleased
 
+### Changed
+
+- Default listener and health port 18212 (was 8080, which collides with Gatecrasher's default on a shared host). The deploy descriptors are regenerated from `project.yaml`.
+
 ### Added
 
 - Initial scaffold from Folio `substrate-app` 0.1.0 (class 1 app-host, enforced auth, MCP, Cerberus supervision).

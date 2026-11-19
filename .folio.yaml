@@ -2,180 +2,180 @@ folio_version: "0.1"
 generated_at: 2026-11-19T10:13:49.842226-06:00
 generator: folio/0.1.0
 presets:
-  - id: go-baseline
-    version: 0.1.0
-    source: bundled
-    resolved_path: bundled:presets/go-baseline
-  - id: substrate-baseline
-    version: 0.1.0
-    source: bundled
-    resolved_path: bundled:presets/substrate-baseline
-  - id: substrate-app
-    version: 0.1.0
-    source: bundled
-    resolved_path: bundled:presets/substrate-app
+    - id: go-baseline
+      version: 0.1.0
+      source: bundled
+      resolved_path: bundled:presets/go-baseline
+    - id: substrate-baseline
+      version: 0.1.0
+      source: bundled
+      resolved_path: bundled:presets/substrate-baseline
+    - id: substrate-app
+      version: 0.1.0
+      source: bundled
+      resolved_path: bundled:presets/substrate-app
 inputs:
-  ade_agenthost: ""
-  agents_boundaries: |-
-    - Pins are edited only in the Substrate `bom/bom.yaml`: run `substrate pins sync --app .`, never hand-edit a version in `go.mod`.
-    - Transports (`internal/api`, later `internal/mcp`, `internal/cli`) never import `internal/storage`, the Substrate `database` module or `database/sql`; go through `internal/service`.
-    - A route without a scope is refused in `enforce`: add it to `Routes()` in `internal/api/api.go` (`TestEveryRouteHasAScope` guards this).
-    - Reads go through `Reader()`, writes through `WriteTx` or one `ExecContext`; never write while a cursor is open on the write handle (SQLite has one write connection).
-    - No secret, host name, address or personal path in a file, a commit or CI: `substrate scan-public --ref HEAD` must stay clean.
-  agents_start_here: |-
-    - `cmd/warden/substrate.yaml` — the manifest: modules and config defaults. `substrate_wiring.go` is generated from it (`substrate generate`); never edit it.
-    - `cmd/warden/serve.go` — the HTTP handler stack: Host check, identity middleware, the host (guard, routes, SPA).
-    - `internal/api/api.go` — every route and the scope it needs. The owner of a row is the verified principal, never a request field.
-    - `internal/service/service.go` — the service layer, the only code that runs SQL; handlers call it. `.golangci.transport.yml` (second lint run) enforces that; `docs/transport-boundary.md` says how.
-    - `internal/storage/migrations/sqlite/00001_init.sql` — the schema. Until the first release this is the only migration.
-    - `docs/identity-bootstrap.md` — the owner is created offline; there is no open setup over HTTP.
-    - `.github/workflows/check.yml` — the full CI gate (vet, pins, wiring current, race tests, both lint runs, scan-public).
-  build_workflow_ref: 7aeb3f65de07c0c41cb0e59a1d6f8300fa3381bc
-  copyright_holder: Hollis Labs
-  deploy_host: fleet-host
-  description: 'Shared credentials service: one issuer, token exchange, tiered grants and a vault for non-human principals'
-  github_owner: hollis-labs
-  go_packages: ./...
-  go_toolchain: ""
-  go_version: 1.26.11
-  http_port: "8080"
-  operator: agency:hollis-labs
-  owner: agency:hollis-labs
-  repo_name: warden
-  repository_location: .
-  repository_name: ""
-  substrate_version: v0.1.1-0.20261119160643-9fd1a312ed78
-  target_arch: amd64
-  target_os: linux
-  with_ade: ""
-  with_chat: ""
-  with_frontend: ""
+    ade_agenthost: ""
+    agents_boundaries: |-
+        - Pins are edited only in the Substrate `bom/bom.yaml`: run `substrate pins sync --app .`, never hand-edit a version in `go.mod`.
+        - Transports (`internal/api`, later `internal/mcp`, `internal/cli`) never import `internal/storage`, the Substrate `database` module or `database/sql`; go through `internal/service`.
+        - A route without a scope is refused in `enforce`: add it to `Routes()` in `internal/api/api.go` (`TestEveryRouteHasAScope` guards this).
+        - Reads go through `Reader()`, writes through `WriteTx` or one `ExecContext`; never write while a cursor is open on the write handle (SQLite has one write connection).
+        - No secret, host name, address or personal path in a file, a commit or CI: `substrate scan-public --ref HEAD` must stay clean.
+    agents_start_here: |-
+        - `cmd/warden/substrate.yaml` — the manifest: modules and config defaults. `substrate_wiring.go` is generated from it (`substrate generate`); never edit it.
+        - `cmd/warden/serve.go` — the HTTP handler stack: Host check, identity middleware, the host (guard, routes, SPA).
+        - `internal/api/api.go` — every route and the scope it needs. The owner of a row is the verified principal, never a request field.
+        - `internal/service/service.go` — the service layer, the only code that runs SQL; handlers call it. `.golangci.transport.yml` (second lint run) enforces that; `docs/transport-boundary.md` says how.
+        - `internal/storage/migrations/sqlite/00001_init.sql` — the schema. Until the first release this is the only migration.
+        - `docs/identity-bootstrap.md` — the owner is created offline; there is no open setup over HTTP.
+        - `.github/workflows/check.yml` — the full CI gate (vet, pins, wiring current, race tests, both lint runs, scan-public).
+    build_workflow_ref: 7aeb3f65de07c0c41cb0e59a1d6f8300fa3381bc
+    copyright_holder: Hollis Labs
+    deploy_host: fleet-host
+    description: 'Shared credentials service: one issuer, token exchange, tiered grants and a vault for non-human principals'
+    github_owner: hollis-labs
+    go_packages: ./...
+    go_toolchain: ""
+    go_version: 1.26.11
+    http_port: "8080"
+    operator: agency:hollis-labs
+    owner: agency:hollis-labs
+    repo_name: warden
+    repository_location: .
+    repository_name: ""
+    substrate_version: v0.1.1-0.20261119160643-9fd1a312ed78
+    target_arch: amd64
+    target_os: linux
+    with_ade: ""
+    with_chat: ""
+    with_frontend: ""
 computed:
-  app_title: Warden
-  env_prefix: WARDEN
-  module_path: github.com/hollis-labs/warden
-  repository_slug: warden
-  workflow_directory: ""
-  year: "2026"
+    app_title: Warden
+    env_prefix: WARDEN
+    module_path: github.com/hollis-labs/warden
+    repository_slug: warden
+    workflow_directory: ""
+    year: "2026"
 files:
-  .github/workflows/build.yml:
-    preset: substrate-baseline
-    digest_at_gen: sha256:2d7a55c50e5032f29f710febeb47075a406995c0a22566d243086140dfa78d23
-  .github/workflows/check.yml:
-    preset: substrate-baseline
-    digest_at_gen: sha256:bdc7cbdae65e7b9e97c8cc9ff8990d6ae1d310bd967ce842e559edb691556820
-  .github/workflows/release.yml:
-    preset: substrate-baseline
-    digest_at_gen: sha256:81f39550f31be4bc104ae7b1ca61abdb989c93bc8acb708e5d084dc537c69ee6
-  .gitignore:
-    preset: substrate-baseline
-    digest_at_gen: sha256:55c4c89227f085fe4589abce71b62a068213a53f7d51cf28e8e028a2cad56747
-  .golangci.transport.yml:
-    preset: substrate-baseline
-    digest_at_gen: sha256:cd944903dbe5763762e05bee01334e130a4bd60abbad554fe37920983dab6a42
-  .golangci.yml:
-    preset: go-baseline
-    digest_at_gen: sha256:05520c358d010ae44e2bf14fc945edc54665752a3eb94e25af6ce53dc06e5adc
-  AGENTS.md:
-    preset: go-baseline
-    digest_at_gen: sha256:6ff804e42e4f092ea3c49389bde8376e2137085b8702f83dabfbee47d0f83525
-  CHANGELOG.md:
-    preset: go-baseline
-    digest_at_gen: sha256:4049bfa75bfaa1a6472340bee55eab66ace47306c26ac2aaacf34f0e9c183c9d
-  LICENSE:
-    preset: go-baseline
-    digest_at_gen: sha256:29fde794587339581b8d68aa7753337b321da45cbe49cf5a0be907db7e67e7d8
-  README.md:
-    preset: substrate-app
-    digest_at_gen: sha256:8f09d69fa0d57451a206781a66548b193317985eebf92dba15affe49fe1840ee
-  cmd/warden/config.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:f595bec9c8b45be38eff7b2474d952204345d672235a6d211ddefb3dac02a603
-  cmd/warden/main.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:0732e254c19db22f9d21a998dba31b51150e73ddee1b8f008c80bf9ca657cbae
-  cmd/warden/plan_test.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:10701b0443e77886a7ad1308d06906b76edce57e37dd62d0258355df31691892
-  cmd/warden/serve.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:f87ebcb7d429876816a04e0b92e084e9da8dc07fa58e382dc4280714bd282d04
-  cmd/warden/substrate.yaml:
-    preset: substrate-baseline
-    digest_at_gen: sha256:70210399753713e034cda900660c1be3aa3abdb29056f6f1c4aee82f0f81934d
-  cmd/warden/substrate_wiring.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:9fdd596e661bd7685462957826eb0c020d956e9477c4256791037c0ea4087910
-  cmd/warden/xdg.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:1b3e13a7f496b1bca7a6ec1c7d8a6d862a6ef25777a6e7dc430b6158f971c8b1
-  deploy.yaml:
-    preset: substrate-baseline
-    digest_at_gen: sha256:2602c1f0db045be6007369696f9127493c07c9e0da3ffdf90c7ae038ef315a1d
-  docs/identity-bootstrap.md:
-    preset: substrate-baseline
-    digest_at_gen: sha256:1c909cbba97ea35e01400bd92d7f24408ffa50ec7048fef2b4839a3f57326d91
-  docs/runbook.md:
-    preset: substrate-baseline
-    digest_at_gen: sha256:a5a91832c32d9512942aa13b0ede2d8e9b71490e0d4c264e07e179043cf3e192
-  docs/transport-boundary.md:
-    preset: substrate-baseline
-    digest_at_gen: sha256:0c437bd480b2b84ac61dff6121cf2a01e97b6624021cdf47c003bec7396cc981
-  go.mod:
-    preset: substrate-baseline
-    digest_at_gen: sha256:40dca3c9985282d39a26920bb8ea791b2238be457020d108b507e94327135e95
-  internal/api/api.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:b811864e1e2a7e571217061bf854369b9cfe706897e040145e1b769b1ebbde0b
-  internal/api/api_test.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:66192437884ab7a689eaea76314e87acd98395ed92a10c4f3d86846a537b70eb
-  internal/hostguard/hostguard.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:4d419ee49313af62d35491a20eaaf847680fef075d6e280dfc3bde79e3c0532d
-  internal/hostguard/hostguard_test.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:5901bf358292fcdfa1de1614bcb695095996969c7af05865d2e213989b59e30d
-  internal/service/service.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:e6631f6320393b559a213aa8992ad652cb41fc1747d60eeb0a7df1653a6f3ed0
-  internal/settings/settings.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:6876e056cc8278be7a1ea27245a22ef7a65702f51c7e1ab35eee43be4c1280aa
-  internal/settings/settings_test.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:ab91dfed7da2644fa5fe8a38b77a197a2b39d4fcd269c52eca9d0d765458c5a3
-  internal/storage/migrations.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:291a11f31924bf629ec90db58beafd1bb4195555d0ac9fb71f563eda01cee041
-  internal/storage/migrations/sqlite/00001_init.sql:
-    preset: substrate-baseline
-    digest_at_gen: sha256:b499a09e5144aa530ee1da6c691a14c93909daa3dd6ae4444a1a69293668e1f9
-  internal/webui/dist/.gitkeep:
-    preset: substrate-baseline
-    digest_at_gen: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-  internal/webui/webui.go:
-    preset: substrate-baseline
-    digest_at_gen: sha256:4661e0d717e20cda23e8257c267cb56612fdda1498d984ab6e9cf2905637acbf
-  lefthook.yml:
-    preset: go-baseline
-    digest_at_gen: sha256:3c829519885e2f797a35d1e0a22d5bbb887793359a450bd4765cc65ce09623ac
-  project.yaml:
-    preset: substrate-baseline
-    digest_at_gen: sha256:461247e200db98e4a00896f390fe5b85be8917b6178da8cc50aab043b381dc92
-  scan-public.allow:
-    preset: substrate-baseline
-    digest_at_gen: sha256:61bcec710295e34495164d618be37202875040f96e2ef4663f83233cdefeb2b0
-  warden.cerberus.yaml:
-    preset: substrate-baseline
-    digest_at_gen: sha256:bcb3328e5b2d5e7941080bc82ebb71c72479179e2ea9d860e244e14ef2968fd2
+    .github/workflows/build.yml:
+        preset: substrate-baseline
+        digest_at_gen: sha256:2d7a55c50e5032f29f710febeb47075a406995c0a22566d243086140dfa78d23
+    .github/workflows/check.yml:
+        preset: substrate-baseline
+        digest_at_gen: sha256:bdc7cbdae65e7b9e97c8cc9ff8990d6ae1d310bd967ce842e559edb691556820
+    .github/workflows/release.yml:
+        preset: substrate-baseline
+        digest_at_gen: sha256:81f39550f31be4bc104ae7b1ca61abdb989c93bc8acb708e5d084dc537c69ee6
+    .gitignore:
+        preset: substrate-baseline
+        digest_at_gen: sha256:55c4c89227f085fe4589abce71b62a068213a53f7d51cf28e8e028a2cad56747
+    .golangci.transport.yml:
+        preset: substrate-baseline
+        digest_at_gen: sha256:cd944903dbe5763762e05bee01334e130a4bd60abbad554fe37920983dab6a42
+    .golangci.yml:
+        preset: go-baseline
+        digest_at_gen: sha256:05520c358d010ae44e2bf14fc945edc54665752a3eb94e25af6ce53dc06e5adc
+    AGENTS.md:
+        preset: go-baseline
+        digest_at_gen: sha256:6ff804e42e4f092ea3c49389bde8376e2137085b8702f83dabfbee47d0f83525
+    CHANGELOG.md:
+        preset: go-baseline
+        digest_at_gen: sha256:4049bfa75bfaa1a6472340bee55eab66ace47306c26ac2aaacf34f0e9c183c9d
+    LICENSE:
+        preset: go-baseline
+        digest_at_gen: sha256:29fde794587339581b8d68aa7753337b321da45cbe49cf5a0be907db7e67e7d8
+    README.md:
+        preset: substrate-app
+        digest_at_gen: sha256:8f09d69fa0d57451a206781a66548b193317985eebf92dba15affe49fe1840ee
+    cmd/warden/config.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:f595bec9c8b45be38eff7b2474d952204345d672235a6d211ddefb3dac02a603
+    cmd/warden/main.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:0732e254c19db22f9d21a998dba31b51150e73ddee1b8f008c80bf9ca657cbae
+    cmd/warden/plan_test.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:10701b0443e77886a7ad1308d06906b76edce57e37dd62d0258355df31691892
+    cmd/warden/serve.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:f87ebcb7d429876816a04e0b92e084e9da8dc07fa58e382dc4280714bd282d04
+    cmd/warden/substrate.yaml:
+        preset: substrate-baseline
+        digest_at_gen: sha256:70210399753713e034cda900660c1be3aa3abdb29056f6f1c4aee82f0f81934d
+    cmd/warden/substrate_wiring.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:9fdd596e661bd7685462957826eb0c020d956e9477c4256791037c0ea4087910
+    cmd/warden/xdg.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:1b3e13a7f496b1bca7a6ec1c7d8a6d862a6ef25777a6e7dc430b6158f971c8b1
+    deploy.yaml:
+        preset: substrate-baseline
+        digest_at_gen: sha256:08917ae910aed086dbe9c4cbb4054117f69d63695b6b33267b64190c82317a87
+    docs/identity-bootstrap.md:
+        preset: substrate-baseline
+        digest_at_gen: sha256:1c909cbba97ea35e01400bd92d7f24408ffa50ec7048fef2b4839a3f57326d91
+    docs/runbook.md:
+        preset: substrate-baseline
+        digest_at_gen: sha256:a5a91832c32d9512942aa13b0ede2d8e9b71490e0d4c264e07e179043cf3e192
+    docs/transport-boundary.md:
+        preset: substrate-baseline
+        digest_at_gen: sha256:0c437bd480b2b84ac61dff6121cf2a01e97b6624021cdf47c003bec7396cc981
+    go.mod:
+        preset: substrate-baseline
+        digest_at_gen: sha256:40dca3c9985282d39a26920bb8ea791b2238be457020d108b507e94327135e95
+    internal/api/api.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:b811864e1e2a7e571217061bf854369b9cfe706897e040145e1b769b1ebbde0b
+    internal/api/api_test.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:66192437884ab7a689eaea76314e87acd98395ed92a10c4f3d86846a537b70eb
+    internal/hostguard/hostguard.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:4d419ee49313af62d35491a20eaaf847680fef075d6e280dfc3bde79e3c0532d
+    internal/hostguard/hostguard_test.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:5901bf358292fcdfa1de1614bcb695095996969c7af05865d2e213989b59e30d
+    internal/service/service.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:e6631f6320393b559a213aa8992ad652cb41fc1747d60eeb0a7df1653a6f3ed0
+    internal/settings/settings.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:6876e056cc8278be7a1ea27245a22ef7a65702f51c7e1ab35eee43be4c1280aa
+    internal/settings/settings_test.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:ab91dfed7da2644fa5fe8a38b77a197a2b39d4fcd269c52eca9d0d765458c5a3
+    internal/storage/migrations.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:291a11f31924bf629ec90db58beafd1bb4195555d0ac9fb71f563eda01cee041
+    internal/storage/migrations/sqlite/00001_init.sql:
+        preset: substrate-baseline
+        digest_at_gen: sha256:b499a09e5144aa530ee1da6c691a14c93909daa3dd6ae4444a1a69293668e1f9
+    internal/webui/dist/.gitkeep:
+        preset: substrate-baseline
+        digest_at_gen: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    internal/webui/webui.go:
+        preset: substrate-baseline
+        digest_at_gen: sha256:4661e0d717e20cda23e8257c267cb56612fdda1498d984ab6e9cf2905637acbf
+    lefthook.yml:
+        preset: go-baseline
+        digest_at_gen: sha256:3c829519885e2f797a35d1e0a22d5bbb887793359a450bd4765cc65ce09623ac
+    project.yaml:
+        preset: substrate-baseline
+        digest_at_gen: sha256:461247e200db98e4a00896f390fe5b85be8917b6178da8cc50aab043b381dc92
+    scan-public.allow:
+        preset: substrate-baseline
+        digest_at_gen: sha256:61bcec710295e34495164d618be37202875040f96e2ef4663f83233cdefeb2b0
+    warden.cerberus.yaml:
+        preset: substrate-baseline
+        digest_at_gen: sha256:2d080df2615d0a5bb5bafaa7fea4b3241685a9ac34aceaab62d62cde071dd675
 sync_history:
-  - at: 2026-11-19T10:13:49.842226-06:00
-    operation: init
-    presets:
-      - id: go-baseline
-        version: 0.1.0
-      - id: substrate-baseline
-        version: 0.1.0
-      - id: substrate-app
-        version: 0.1.0
+    - at: 2026-11-19T10:13:49.842226-06:00
+      operation: init
+      presets:
+        - id: go-baseline
+          version: 0.1.0
+        - id: substrate-baseline
+          version: 0.1.0
+        - id: substrate-app
+          version: 0.1.0

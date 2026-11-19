@@ -47,7 +47,7 @@ call. `substrate-service` is a class 2 loopback daemon.
 ```sh
 ./warden identity setup --username owner                        # offline; the password is typed twice
 ./warden identity key create --name owner-cli --scope '*' --out ~/.config/warden/owner.key
-./warden serve                                                  # listens on 127.0.0.1:8080
+./warden serve                                                  # listens on 127.0.0.1:18212
 ```
 
 With no configuration, approvals use an in-process **fake** Gatecrasher. A pending elevated or critical
@@ -57,7 +57,7 @@ request is decided by the owner with `warden dev approvals` and `warden dev deci
 The pilot from the design (§7) shows the whole cycle for the Surface classifier's llm-gateway key:
 
 ```sh
-export WARDEN_URL=http://127.0.0.1:8080
+export WARDEN_URL=http://127.0.0.1:18212
 warden enroll  --token-file ~/.config/warden/owner.key --sub app:surface --kind app --out ~/.config/surface/warden.token
 warden request --credential ~/.config/surface/warden.token --audience llm-gateway --scope llm-gateway.decide,llm-gateway.embed
 warden token   --credential ~/.config/surface/warden.token --audience llm-gateway   # a 60-minute token

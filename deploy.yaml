@@ -16,6 +16,6 @@ targets:
     # Cerberus supervises the process (Option B): it runs the symlink above and never builds or places the binary.
     restart: {via: cerberus, resource: warden}
     health:
-      url: "http://127.0.0.1:8080/healthz"
+      url: "http://127.0.0.1:18212/healthz"
       expect_status: [200]
       timeout: 30s

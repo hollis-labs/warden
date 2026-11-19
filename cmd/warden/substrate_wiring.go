@@ -18,7 +18,7 @@ import (
 
 const (
 	substrateApp        = "warden"
-	substrateConfigJSON = "{\"auth\":{\"mode\":\"enforce\"},\"database\":{\"sqlite\":{\"path\":\"warden.db\"}},\"httphost\":{\"addr\":\"127.0.0.1:8080\"},\"identity\":{\"key_file\":\"identity-signing.key\",\"session_ttl\":\"12h\"},\"logging\":{\"format\":\"text\",\"level\":\"info\"},\"secrets\":{\"state_dir\":\"secrets\"},\"warden\":{\"allowed_hosts\":[]}}"
+	substrateConfigJSON = "{\"auth\":{\"mode\":\"enforce\"},\"database\":{\"sqlite\":{\"path\":\"warden.db\"}},\"httphost\":{\"addr\":\"127.0.0.1:18212\"},\"identity\":{\"key_file\":\"identity-signing.key\",\"session_ttl\":\"12h\"},\"logging\":{\"format\":\"text\",\"level\":\"info\"},\"secrets\":{\"state_dir\":\"secrets\"},\"warden\":{\"allowed_hosts\":[]}}"
 )
 
 // substrateModules is the start order.

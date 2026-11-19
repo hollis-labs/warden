@@ -3,7 +3,7 @@
 //
 //	warden:
 //	  allowed_hosts: []            # extra Host names served (a local TLS proxy forwarding a public name)
-//	  public_url: http://127.0.0.1:8080   # how clients reach Warden (discovery metadata)
+//	  public_url: http://127.0.0.1:18212   # how clients reach Warden (discovery metadata)
 //	  issuer: ""                   # iss of every token; default public_url
 //	  policy_file: ""              # rules file; default the embedded starter rules
 //	  verification_uri: ""         # where a person approves a device code; default <public_url>/v1/device
@@ -58,7 +58,7 @@ type Settings struct {
 // Parse reads the block (nil for a missing one). An unknown key or a bad value is an error naming the key,
 // so a typo is found at startup instead of silently turning a protection off.
 func Parse(raw any) (Settings, error) {
-	s := Settings{PublicURL: "http://127.0.0.1:8080", Approvals: Approvals{Mode: ApprovalsFake, Issuer: "gatecrasher"}}
+	s := Settings{PublicURL: "http://127.0.0.1:18212", Approvals: Approvals{Mode: ApprovalsFake, Issuer: "gatecrasher"}}
 	if raw != nil {
 		block, ok := raw.(map[string]any)
 		if !ok {

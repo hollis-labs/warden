@@ -64,7 +64,7 @@ Folio generation and `deploy render` never create tags, releases, installations 
 The `warden:` block of the config file (see `internal/settings/settings.go` for every key):
 
 ```yaml
-httphost: { addr: "127.0.0.1:8080" }
+httphost: { addr: "127.0.0.1:18212" }
 warden:
   public_url: https://warden.example      # what clients use; also the token issuer (iss) unless `issuer` is set
   allowed_hosts: [warden.example]         # Host names served beyond loopback
