@@ -128,19 +128,41 @@ Rollback: revoke the grant (`warden grants revoke`) and switch Surface back to i
 
 ## Postgres
 
-Warden runs on SQLite (the default) or Postgres through the Substrate database module. The two migration
-directories under `internal/storage/migrations/` are kept in parity (`TestMigrationParity`), and CI runs
-the service suite on both. For Postgres:
+Warden keeps two kinds of data apart:
+
+- **The default store is a small local SQLite file.** It holds the identity module's owner, sessions and
+  API keys. The identity module creates its tables itself at start, so this store must allow DDL.
+- **The named store `data` holds Warden's own tables** when it is configured: principals, grants,
+  families, requests and audit. In production it is Postgres. Its runtime login has no DDL rights, and
+  the schema is applied by a deploy step that uses the migration login.
+
+With no `data` store configured, everything stays in the default store. That is the development
+setup.
 
 ```yaml
 database:
-  driver: postgres
-  schema_mode: auto                 # Warden applies its own migrations with the migration login
-  postgres:
-    dsn_file: ~/.config/warden/pg-runtime.dsn          # 0600; the runtime login's connection string
-    migrate_dsn_file: ~/.config/warden/pg-migrate.dsn  # 0600; the migration login, used only to migrate
+  sqlite: { path: warden.db }                  # default store: identity
+  stores:
+    data:
+      driver: postgres                         # required: true and schema_mode: verify are the defaults
+      postgres:
+        dsn_file: ~/.config/warden/pg-runtime.dsn          # 0600; runtime login (DML only)
+        migrate_dsn_file: ~/.config/warden/pg-migrate.dsn  # 0600; migration login, read only by `db migrate`
 ```
 
-The connection strings are secrets: compose them file to file from the provisioned password files, never
-in config or on a command line. Put the schema in the DSN (`search_path`), and when migrations must run as
-the schema owner, set the role at connection start in the migration DSN (`options=-c role=<owner>`).
+Deploy order:
+
+1. Run `warden db migrate --store data` with the migration login. It must become the schema owner, so set
+   the role at connection start: add `options=-c role=<owner>` to the migration DSN.
+2. Start Warden. It verifies the schema and refuses to start while the schema is behind.
+
+The runtime login needs `USAGE` on the schema, plus `SELECT`, `INSERT`, `UPDATE` and `DELETE` on the
+tables and `USAGE` and `SELECT` on the sequences that the owner creates. Grant them as default privileges
+for the owner role.
+
+The connection strings are secrets: compose them file to file from the provisioned password files, and
+never put them in config or on a command line. Put the schema in the DSN (`search_path=<schema>`). Use
+`sslmode=verify-full` with the server's certificate name and `sslrootcert`, not a bare `require`.
+
+Back up the default store, `warden.db` (identity), and the `issuer/` key directory together, in addition
+to the Postgres database.

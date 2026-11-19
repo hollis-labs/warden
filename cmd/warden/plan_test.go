@@ -19,6 +19,7 @@ func TestPlan(t *testing.T) {
 		{[]string{"serve"}},
 		{[]string{"serve", "--managed", "--addr", "127.0.0.1:8089"}},
 		{[]string{"identity", "setup", "--username", "owner"}},
+		{[]string{"db", "migrate", "--store", "data"}},
 		{[]string{"identity", "key", "create", "--name", "x"}},
 	}
 	for _, c := range full {
