@@ -107,6 +107,18 @@ func serve(ctx context.Context, app *module.App, ready func(net.Addr)) error {
 	if st == nil {
 		return errors.New("the database module must be started")
 	}
+	if h := database.Named(app, DataStore); h != nil {
+		// Required by default, so Start has opened it; an optional one is waited for here.
+		if err := h.Wait(ctx); err != nil {
+			return fmt.Errorf("data store: %w", err)
+		}
+		data, err := h.Get()
+		if err != nil {
+			return fmt.Errorf("data store: %w", err)
+		}
+		st = data
+		slog.Info("warden: tables in the named data store", "store", DataStore, "target", h.Status().Target)
+	}
 	if issuerKeys == nil {
 		return errors.New("the issuer keys are not open")
 	}

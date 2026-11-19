@@ -19,6 +19,9 @@ import (
 	"github.com/hollis-labs/warden/internal/storage"
 )
 
+// DataStore is the named store that holds Warden's tables when configured (database.stores.data).
+const DataStore = "data"
+
 // Set by start for serve: the signing keys and the deny-list the auth module's verifier reads.
 var (
 	issuerKeys *issuer.KeyStore
@@ -81,6 +84,9 @@ func plan(args []string) runPlan {
 		if err := cmd.ParseFlags(args[1:]); err == nil && len(cmd.Flags().Args()) == 0 {
 			return runPlan{modules: substrateModules, prepare: true, issuer: true}
 		}
+	case len(words) > 1 && words[0] == "db" && words[1] == "migrate":
+		// The deploy step for a Postgres data store: it migrates over the store's migration login.
+		return runPlan{modules: substrateModules, prepare: true}
 	case len(words) > 1 && words[0] == "identity" && (words[1] == "setup" || (words[1] == "key" && len(words) > 2 && words[2] == "create")):
 		return runPlan{modules: substrateModules, prepare: true}
 	}
@@ -108,7 +114,14 @@ func start(ctx context.Context, pl runPlan) (*boot.Running, error) {
 		if err != nil {
 			return nil, err
 		}
-		database.UseMigrationFS(storage.Migrations())
+		// Warden's tables live in the named store "data" when one is configured (Postgres in production: its
+		// runtime login has no DDL rights, and `warden db migrate --store data` is the deploy step), else in
+		// the default store. The default store always holds the identity module's tables, so it stays a small
+		// local file that the identity module may create tables in. Registering both is harmless: a source
+		// for a store that is not configured is never used.
+		migrations, root := storage.Migrations()
+		database.UseMigrationFS(migrations, root)
+		database.UseNamedMigrationFS(DataStore, migrations, root)
 		if pl.issuer {
 			// Warden verifies its own tokens through the same libs verifier every resource server runs, reading
 			// the key ring in process (it cannot fetch its own JWKS before its listener is up).
