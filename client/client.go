@@ -26,7 +26,7 @@ import (
 
 // Client talks to one Warden.
 type Client struct {
-	BaseURL string // e.g. http://127.0.0.1:8080
+	BaseURL string // e.g. http://127.0.0.1:18212
 	HTTP    *http.Client
 	// Bearer returns the credential for the management API (/api/v1/...): a Warden token for audience
 	// warden (Minter.Token) or an owner API key.

@@ -24,7 +24,7 @@ settings:
     target_os: linux
     target_arch: amd64
     host: fleet-host
-    http_port: 8080
+    http_port: 18212
     binary_link: ~/.local/bin/warden
     install_root: ~/.local/share/fleet/releases/warden
     backup_database: ~/.local/share/warden/warden.db

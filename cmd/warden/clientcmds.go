@@ -24,7 +24,7 @@ type conn struct {
 
 func connFlags(cmd *cobra.Command) *conn {
 	c := &conn{}
-	cmd.Flags().StringVar(&c.url, "url", envOr("WARDEN_URL", "http://127.0.0.1:8080"), "Warden base URL (env WARDEN_URL)")
+	cmd.Flags().StringVar(&c.url, "url", envOr("WARDEN_URL", "http://127.0.0.1:18212"), "Warden base URL (env WARDEN_URL)")
 	cmd.Flags().StringVar(&c.credential, "credential", os.Getenv("WARDEN_CREDENTIAL"),
 		"parent credential file (0600); rotated on every use (env WARDEN_CREDENTIAL)")
 	cmd.Flags().StringVar(&c.tokenFile, "token-file", os.Getenv("WARDEN_TOKEN_FILE"),

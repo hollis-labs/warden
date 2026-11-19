@@ -6,7 +6,7 @@ modules:
   add: [database, identity, cli]
 config:
   logging: { level: info, format: text }
-  httphost: { addr: "127.0.0.1:8080" }
+  httphost: { addr: "127.0.0.1:18212" }
   database:
     sqlite: { path: warden.db }
   auth: { mode: enforce }
